@@ -102,51 +102,55 @@ namespace WebVella.Erp.Web.Components
 					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query param 'pid', when requesting this component"));
 				}
 
-				var instanceOptions = new PcButtonOptions();
+				var options = new PcButtonOptions();
 				if (context.Options != null)
 				{
-					instanceOptions = JsonConvert.DeserializeObject<PcButtonOptions>(context.Options.ToString());
+					options = JsonConvert.DeserializeObject<PcButtonOptions>(context.Options.ToString());
 				}
 
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
 				#endregion
 
-				var isVisible = true;
-				var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(instanceOptions.IsVisible);
-				if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
-				{
-					if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
-					{
-						isVisible = outBool;
-					}
-				}
-				else if (isVisibleDS is Boolean)
-				{
-					isVisible = (bool)isVisibleDS;
-				}
-				ViewBag.IsVisible = isVisible;
-
-                instanceOptions.Text = context.DataModel.GetPropertyValueByDataSource(instanceOptions.Text) as string;
-                instanceOptions.Class = context.DataModel.GetPropertyValueByDataSource(instanceOptions.Class) as string;
-                instanceOptions.IconClass = context.DataModel.GetPropertyValueByDataSource(instanceOptions.IconClass) as string;
-
-                ViewBag.Options = instanceOptions;
+                ViewBag.Options = options;
 				ViewBag.Node = context.Node;
 				ViewBag.ComponentMeta = componentMeta;
 				ViewBag.RequestContext = ErpRequestContext;
 				ViewBag.AppContext = ErpAppContext.Current;
-				ViewBag.ProcessedHref = context.DataModel.GetPropertyValueByDataSource(instanceOptions.Href);
 
-				#region << Select options >>
-				ViewBag.CssSize = ModelExtensions.GetEnumAsSelectOptions<CssSize>(); 
+                if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+                {
+                    var isVisible = true;
+                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
+                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+                    {
+                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+                        {
+                            isVisible = outBool;
+                        }
+                    }
+                    else if (isVisibleDS is Boolean)
+                    {
+                        isVisible = (bool)isVisibleDS;
+                    }
+                    ViewBag.IsVisible = isVisible;
 
-				ViewBag.ColorOptions = ModelExtensions.GetEnumAsSelectOptions<ErpColor>().OrderBy(x=> x.Label).ToList();
+                    options.Text = context.DataModel.GetPropertyValueByDataSource(options.Text) as string;
+                    options.Class = context.DataModel.GetPropertyValueByDataSource(options.Class) as string;
+                    options.IconClass = context.DataModel.GetPropertyValueByDataSource(options.IconClass) as string;
+					options.OnClick = context.DataModel.GetPropertyValueByDataSource(options.OnClick) as string;
 
-				ViewBag.TypeOptions = ModelExtensions.GetEnumAsSelectOptions<ButtonType>(); 
+					ViewBag.ProcessedHref = context.DataModel.GetPropertyValueByDataSource(options.Href);
 
-				#endregion
+                }
+                #region << Select options >>
+                ViewBag.CssSize = ModelExtensions.GetEnumAsSelectOptions<CssSize>();
 
-				switch (context.Mode)
+                ViewBag.ColorOptions = ModelExtensions.GetEnumAsSelectOptions<ErpColor>().OrderBy(x => x.Label).ToList();
+
+                ViewBag.TypeOptions = ModelExtensions.GetEnumAsSelectOptions<ButtonType>();
+
+                #endregion
+                switch (context.Mode)
 				{
 					case ComponentMode.Display:
 						return await Task.FromResult<IViewComponentResult>(View("Display"));

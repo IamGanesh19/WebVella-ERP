@@ -4,13 +4,17 @@ var flatPickrServerDateTimeFormat = "Y-m-dTH:i:S";//"Z";
 //From the server dates will be received yyyy-MM-ddTHH:mm:ss.fff
 var flatPickrUiDateTimeFormat = "d M Y H:i";
 function InitFlatPickrDateTimeInlineEdit(editWrapperSelector) {
-	var defaultDate = $(editWrapperSelector).attr("data-default-date");
+    var defaultDate = $(editWrapperSelector).attr("data-default-date");
+    if (defaultDate === "") {
+        defaultDate = null;
+    }
 	var options = { 
 		time_24hr: true,
 		defaultDate: defaultDate,
 		dateFormat: flatPickrServerDateTimeFormat,
 		//locale: BulgarianDateTimeLocale,
-		enableTime: true,
+        enableTime: true,
+        "static": true,
 		minuteIncrement: 1,
 		altInput: true,
 		altFormat: flatPickrUiDateTimeFormat

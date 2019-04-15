@@ -226,28 +226,38 @@ namespace WebVella.Erp.Web.TagHelpers
 					fieldType = FieldType.ImageField;
 					break;
 				case "wv-field-textarea":
-					fieldType = FieldType.MultiLineTextField;
+                case "wv-field-data-csv":
+                    fieldType = FieldType.MultiLineTextField;
 					break;
 				case "wv-field-multiselect":
 				case "wv-field-checkbox-list":
 					fieldType = FieldType.MultiSelectField;
-					if (Value is List<string>)
-					{
+                    if (Value == null)
+                    {
+                        Value = new List<string>();
+                    }
+                    else if (Value is List<string>)
+                    {
 
-					}
-					else if (Value is List<SelectOption>)
-					{
-						var newListString = new List<string>();
-						foreach (var option in (List<SelectOption>)Value)
-						{
-							newListString.Add(option.Value);
-						}
-						Value = newListString;
-					}
-					else
-					{
-						throw new Exception("Expected multiselect value is List<string> or List<SelectOption>");
-					}
+                    }
+                    else if (Value is List<SelectOption>)
+                    {
+                        var newListString = new List<string>();
+                        foreach (var option in (List<SelectOption>)Value)
+                        {
+                            newListString.Add(option.Value);
+                        }
+                        Value = newListString;
+                    }
+                    else if (Value is string) {
+                        var stringValue = Value.ToString();
+  
+                        Value = new List<string>() { stringValue };
+                    }
+                    else
+                    {
+                        throw new Exception("Expected multiselect value is List<string> or List<SelectOption>");
+                    }
 					break;
 				case "wv-field-number":
 					fieldType = FieldType.NumberField;

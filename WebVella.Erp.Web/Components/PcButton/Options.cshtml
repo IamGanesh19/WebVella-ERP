@@ -62,12 +62,12 @@
 		<wv-field-datasource name="is_visible" label-text="Is Rendered" value="@options.IsVisible" page-id="erpRequest.Page.Id" placeholder="true"></wv-field-datasource>
 	</wv-column>
 	<wv-column span="8">
-		<wv-field-text name="onclick" label-text="OnClick" value="@options.OnClick"></wv-field-text>
+		<wv-field-datasource name="onclick" label-text="OnClick" value="@options.OnClick" page-id="erpRequest.Page.Id"></wv-field-datasource>
 	</wv-column>
 </wv-row>
 <wv-row>
 	<wv-column span="4">
-		<wv-field-datasource page-id="erpRequest.Page.Id" name="href" label-text="Href" value="@options.Href"></wv-field-datasource>
+		<wv-field-datasource page-id="erpRequest.Page.Id" name="href" label-text="Href (applied only for LinkAsButton type)" value="@options.Href"></wv-field-datasource>
 	</wv-column>
 	<wv-column span="4">
 		<wv-field-checkbox name="new_tab" label-text="New tab" value="@options.NewTab" text-true="open link in new tab"></wv-field-checkbox>

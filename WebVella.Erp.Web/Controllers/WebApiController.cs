@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using CsvHelper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
@@ -12,9 +13,11 @@ using SixLabors.ImageSharp.Processing;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using WebVella.Erp.Api;
 using WebVella.Erp.Api.Models;
 using WebVella.Erp.Api.Models.AutoMapper;
@@ -173,7 +176,8 @@ namespace WebVella.Erp.Web.Controllers
                         {
                             collapsedNodeIds = ((JArray)componentData["collapsed_node_ids"]).ToObject<List<Guid>>();
                         }
-                        else {
+                        else
+                        {
                             throw new Exception("Unknown format of collapsed_node_ids");
                         }
                     }
@@ -214,7 +218,8 @@ namespace WebVella.Erp.Web.Controllers
                     if (!collapsedNodeIds.Contains(nodeId.Value))
                         collapsedNodeIds.Add(nodeId.Value);
                 }
-                else {
+                else
+                {
                     //new state is uncollapsed
                     //1. remove it is in collapsed
                     collapsedNodeIds = collapsedNodeIds.FindAll(x => x != nodeId.Value).ToList();
@@ -833,6 +838,9 @@ namespace WebVella.Erp.Web.Controllers
         //	}
         //}
 
+
+        #region << UI component support >>
+
         [Produces("application/json")]
         [Route("api/v3.0/p/core/related-field-multiselect")]
         [AcceptVerbs("GET", "POST")]
@@ -1033,6 +1041,86 @@ namespace WebVella.Erp.Web.Controllers
             }
             return new JsonResult(response);
         }
+
+        [Produces("text/html")]
+        [Route("api/v3.0/{lang}/p/core/ui/field-table-data/generate/preview")]
+        [AcceptVerbs("POST")]
+        [ResponseCache(NoStore = true, Duration = 0)]
+        public IActionResult FieldTableDataPreview([FromRoute] string lang, [FromBody]JObject submitObj)
+        {
+            var hasHeader = true;
+            string csvData = "";
+            string delimiterName = "";
+            #region << Init SubmitObj >>
+            foreach (var prop in submitObj.Properties())
+            {
+                switch (prop.Name.ToLower())
+                {
+                    case "hasheader":
+                        if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+                        {
+                            var hasHeaderString = prop.Value.ToString();
+                            if (hasHeaderString.ToLowerInvariant() == "false") {
+                                hasHeader = false;
+                            }
+                        }
+                        break;
+                    case "csv":
+                        if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+                        {
+                            csvData = prop.Value.ToString();
+                        }
+                        break;
+                    case "delimiter":
+                        if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+                        {
+                            delimiterName = prop.Value.ToString(); //Does not work if first checked for empty string
+                        }
+                        break;
+                }
+            }
+
+            var records = new List<dynamic>();
+            try
+            {
+                records = new RenderService().GetCsvData(csvData, hasHeader, delimiterName);
+            }
+            catch (CsvHelperException ex)
+            {
+                //ex.Data.Values has more info...
+                if (lang == "bg")
+                {
+                    return Content("<div class='alert alert-danger p-2'>Грешен формат на данните. Опитайте с друг разделител.</div>");
+                }
+                else
+                {
+                    return Content("<div class='alert alert-danger p-2'>Error in parsing data. Check another delimiter</div>");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (lang == "bg")
+                {
+                    return Content("<div class='alert alert-danger p-2'>Грешен формат на данните. Опитайте с друг разделител.</div>");
+                }
+                else
+                {
+                    return Content("<div class='alert alert-danger p-2'>Error in parsing data. Check another delimiter</div>");
+                }
+            }
+
+            #endregion
+
+            var result = new EntityRecord();
+            result["hasHeader"] = hasHeader;
+            result["data"] = records;
+            result["lang"] = lang;
+            return PartialView("FieldTableDataPreview", result);
+        }
+
+
+
+        #endregion
 
         #region << Entity Meta >>
 
@@ -3031,96 +3119,6 @@ namespace WebVella.Erp.Web.Controllers
 
         }
 
-
-        [AcceptVerbs(new[] { "POST" }, Route = "/fs/upload-user-file-multiple/")]
-        [ResponseCache(NoStore = true, Duration = 0)]
-        public IActionResult UploadUserFileMultiple([FromForm] List<IFormFile> files)
-        {
-
-            var resultRecords = new List<EntityRecord>();
-            var response = new ResponseModel { Timestamp = DateTime.UtcNow, Success = true, Errors = new List<ErrorModel>() };
-
-            using (var connection = DbContext.Current.CreateConnection())
-            {
-                connection.BeginTransaction();
-
-                try
-                {
-
-                    var currentUser = AuthService.GetUser(User);
-
-                    foreach (var file in files)
-                    {
-                        var fileBuffer = ReadFully(file.OpenReadStream());
-                        var fileName = ContentDispositionHeaderValue.Parse(file.ContentDisposition).FileName.ToString().Trim().ToLowerInvariant();
-                        if (fileName.StartsWith("\"", StringComparison.InvariantCulture))
-                            fileName = fileName.Substring(1);
-
-                        if (fileName.EndsWith("\"", StringComparison.InvariantCulture))
-                            fileName = fileName.Substring(0, fileName.Length - 1);
-
-                        var recMan = new RecordManager();
-                        DbFileRepository fsRepository = new DbFileRepository();
-                        string section = Guid.NewGuid().ToString().Replace("-", "").ToLowerInvariant();
-                        var filePath = "/user_file/" + currentUser.Id + "/" + section + "/" + fileName;
-                        var createdFile = fsRepository.Create(filePath, fileBuffer, DateTime.Now, currentUser.Id);
-                        var userFileId = Guid.NewGuid();
-
-                        var userFileRecord = new EntityRecord();
-                        #region << record fill >>
-                        userFileRecord["id"] = userFileId;
-                        userFileRecord["created_on"] = DateTime.Now;
-                        userFileRecord["name"] = fileName;
-                        userFileRecord["size"] = Math.Round((decimal)(file.Length / 1024), 0);
-                        userFileRecord["path"] = filePath;
-
-                        var mimeType = MimeMapping.MimeUtility.GetMimeMapping(filePath);
-                        var fileExtension = Path.GetExtension(filePath);
-                        if (mimeType.StartsWith("image"))
-                        {
-                            var dimensionsRecord = Helpers.GetImageDimension(fileBuffer);
-                            userFileRecord["width"] = (decimal)dimensionsRecord["width"];
-                            userFileRecord["height"] = (decimal)dimensionsRecord["height"];
-                            userFileRecord["type"] = "image";
-                        }
-                        else if (mimeType.StartsWith("video"))
-                        {
-                            userFileRecord["type"] = "video";
-                        }
-                        else if (mimeType.StartsWith("audio"))
-                        {
-                            userFileRecord["type"] = "audio";
-                        }
-                        else if (fileExtension == ".doc" || fileExtension == ".docx" || fileExtension == ".odt" || fileExtension == ".rtf"
-                         || fileExtension == ".txt" || fileExtension == ".pdf" || fileExtension == ".html" || fileExtension == ".htm" || fileExtension == ".ppt"
-                          || fileExtension == ".pptx" || fileExtension == ".xls" || fileExtension == ".xlsx" || fileExtension == ".ods" || fileExtension == ".odp")
-                        {
-                            userFileRecord["type"] = "document";
-                        }
-                        else
-                        {
-                            userFileRecord["type"] = "other";
-                        }
-                        #endregion
-
-                        var recordCreateResult = recMan.CreateRecord("user_file", userFileRecord);
-                        resultRecords.Add(userFileRecord);
-                    }
-                    connection.CommitTransaction();
-                    response.Success = true;
-                    response.Object = resultRecords;
-                    return DoResponse(response);
-                }
-                catch (Exception ex)
-                {
-                    connection.RollbackTransaction();
-                    response.Success = false;
-                    response.Message = ex.Message;
-                    return DoResponse(response);
-                }
-            }
-        }
-
         [AcceptVerbs(new[] { "POST" }, Route = "/fs/move/")]
         [ResponseCache(NoStore = true, Duration = 0)]
         public IActionResult MoveFile([FromBody]JObject submitObj)
@@ -3815,6 +3813,113 @@ namespace WebVella.Erp.Web.Controllers
             }
         }
 
+        [AcceptVerbs(new[] { "POST" }, Route = "/fs/upload-user-file-multiple/")]
+        [ResponseCache(NoStore = true, Duration = 0)]
+        public IActionResult UploadUserFileMultiple([FromForm] List<IFormFile> files)
+        {
+
+            var resultRecords = new List<EntityRecord>();
+            var response = new ResponseModel { Timestamp = DateTime.UtcNow, Success = true, Errors = new List<ErrorModel>() };
+
+            using (var connection = DbContext.Current.CreateConnection())
+            {
+                connection.BeginTransaction();
+
+                try
+                {
+
+                    var currentUser = AuthService.GetUser(User);
+
+                    foreach (var file in files)
+                    {
+                        var fileBuffer = ReadFully(file.OpenReadStream());
+                        var fileName = ContentDispositionHeaderValue.Parse(file.ContentDisposition).FileName.ToString().Trim().ToLowerInvariant();
+                        if (fileName.StartsWith("\"", StringComparison.InvariantCulture))
+                            fileName = fileName.Substring(1);
+
+                        if (fileName.EndsWith("\"", StringComparison.InvariantCulture))
+                            fileName = fileName.Substring(0, fileName.Length - 1);
+
+                        var recMan = new RecordManager();
+                        DbFileRepository fsRepository = new DbFileRepository();
+                        string section = Guid.NewGuid().ToString().Replace("-", "").ToLowerInvariant();
+                        var filePath = "/user_file/" + currentUser.Id + "/" + section + "/" + fileName;
+                        var createdFile = fsRepository.Create(filePath, fileBuffer, DateTime.Now, currentUser.Id);
+                        var userFileId = Guid.NewGuid();
+
+                        var userFileRecord = new EntityRecord();
+                        #region << record fill >>
+                        userFileRecord["id"] = userFileId;
+                        userFileRecord["created_on"] = DateTime.Now;
+                        userFileRecord["name"] = fileName;
+                        userFileRecord["size"] = Math.Round((decimal)(file.Length / 1024), 0);
+                        userFileRecord["path"] = filePath;
+
+                        var mimeType = MimeMapping.MimeUtility.GetMimeMapping(filePath);
+                        var fileExtension = Path.GetExtension(filePath);
+                        if (mimeType.StartsWith("image"))
+                        {
+                            var dimensionsRecord = Helpers.GetImageDimension(fileBuffer);
+                            userFileRecord["width"] = (decimal)dimensionsRecord["width"];
+                            userFileRecord["height"] = (decimal)dimensionsRecord["height"];
+                            userFileRecord["type"] = "image";
+                        }
+                        else if (mimeType.StartsWith("video"))
+                        {
+                            userFileRecord["type"] = "video";
+                        }
+                        else if (mimeType.StartsWith("audio"))
+                        {
+                            userFileRecord["type"] = "audio";
+                        }
+                        else if (fileExtension == ".doc" || fileExtension == ".docx" || fileExtension == ".odt" || fileExtension == ".rtf"
+                         || fileExtension == ".txt" || fileExtension == ".pdf" || fileExtension == ".html" || fileExtension == ".htm" || fileExtension == ".ppt"
+                          || fileExtension == ".pptx" || fileExtension == ".xls" || fileExtension == ".xlsx" || fileExtension == ".ods" || fileExtension == ".odp")
+                        {
+                            userFileRecord["type"] = "document";
+                        }
+                        else
+                        {
+                            userFileRecord["type"] = "other";
+                        }
+                        #endregion
+
+                        var recordCreateResult = recMan.CreateRecord("user_file", userFileRecord);
+                        if (!recordCreateResult.Success)
+                        {
+                            throw new Exception(recordCreateResult.Message);
+                        }
+                        resultRecords.Add(userFileRecord);
+                    }
+                    connection.CommitTransaction();
+                    response.Success = true;
+                    response.Object = resultRecords;
+                    return DoResponse(response);
+                }
+                catch (Exception ex)
+                {
+                    connection.RollbackTransaction();
+                    response.Success = false;
+                    response.Message = ex.Message;
+                    return DoResponse(response);
+                }
+            }
+        }
+
+
+        #endregion
+
+        #region << Utils >>
+
+        public static Stream GenerateStreamFromString(string s)
+        {
+            var stream = new MemoryStream();
+            var writer = new StreamWriter(stream);
+            writer.Write(s);
+            writer.Flush();
+            stream.Position = 0;
+            return stream;
+        }
         #endregion
     }
 }

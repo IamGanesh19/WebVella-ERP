@@ -241,11 +241,25 @@ namespace WebVella.Erp.Web.Models
 						};
 					}
 
-					if( ErpRequestContext.SitemapArea == null )
+					if( ErpRequestContext.SitemapArea == null && ErpRequestContext.Page != null && ErpRequestContext.Page.Type != PageType.Application)
 						return new NotFoundResult();
 
-					if (area.Id == ErpRequestContext.SitemapArea.Id)
+					if (ErpRequestContext.SitemapArea != null && area.Id == ErpRequestContext.SitemapArea.Id)
                         areaMenuItem.Class = "current";
+
+					//Process the an unusual case when the area has a node type URL which has a link to an app Page or a site page.
+					//Then there is no SitemapArea in the ErpRequest as the URL does not has the information about one but still it needs to be 
+					//marked as current
+					if (ErpRequestContext.SitemapArea == null) {
+						var urlNodes = area.Nodes.FindAll(x => x.Type == SitemapNodeType.Url);
+						var path = HttpContext.Request.Path;
+						foreach (var urlNode in urlNodes)
+						{
+							if (path == urlNode.Url) {
+								areaMenuItem.Class = "current";
+							}
+						}
+					}
 
 					ApplicationMenu.Add(areaMenuItem);
 				}
@@ -258,7 +272,7 @@ namespace WebVella.Erp.Web.Models
 			var sitePages = pageSrv.GetSitePages();
 			foreach (var sitePage in sitePages)
 			{
-                if (sitePage.Weight > 0)
+                if (sitePage.Weight < 1000)
                 {
                     SiteMenu.Add(new MenuItem()
                     {
@@ -417,8 +431,13 @@ namespace WebVella.Erp.Web.Models
 					ViewData["BodyClass"] = bodyClass + classAddon;
 				}
 			}
-			#endregion
-		}
+            ViewData["AppName"] = ErpSettings.AppName;
+            ViewData["SystemMasterBodyStyle"] = "";
+            if (!String.IsNullOrWhiteSpace(ErpSettings.SystemMasterBackgroundImageUrl)) {
+                ViewData["SystemMasterBodyStyle"] = "background-image: url('" + ErpSettings.SystemMasterBackgroundImageUrl + "');background-position: top center;background-repeat: repeat;min-height: 100vh; ";
+            }
+            #endregion
+        }
 
 	}
 }
