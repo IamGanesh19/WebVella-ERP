@@ -108,7 +108,7 @@ namespace WebVella.Erp.Web.TagHelpers
 					var selectFileLink = new TagBuilder("button");
 					selectFileLink.Attributes.Add("type", $"button");
 					selectFileLink.AddCssClass("btn btn-white");
-					selectFileLink.Attributes.Add("onclick", $"document.getElementById('file-{FieldId}').click();");
+					selectFileLink.Attributes.Add("onclick", $"window.document.getElementById('file-{FieldId}').click();");
 					selectFileLink.InnerHtml.AppendHtml("browse");
 					appendEl.InnerHtml.AppendHtml(selectFileLink);
 
@@ -297,12 +297,12 @@ namespace WebVella.Erp.Web.TagHelpers
 						viewWrapperEl.InnerHtml.AppendHtml(viewFormControlEl);
 
 						var viewInputActionEl = new TagBuilder("span");
-						viewInputActionEl.AddCssClass("input-group-append action");
+						viewInputActionEl.AddCssClass("input-group-append");
 						viewInputActionEl.Attributes.Add("title", "edit");
 
 						var viewInputActionLinkEl = new TagBuilder("button");
 						viewInputActionLinkEl.Attributes.Add("type", "button");
-						viewInputActionLinkEl.AddCssClass("btn btn-white");
+						viewInputActionLinkEl.AddCssClass("btn btn-white action");
 
 						var viewInputActionIconEl = new TagBuilder("span");
 						viewInputActionIconEl.AddCssClass("fa fa-fw fa-pencil-alt");
@@ -380,7 +380,7 @@ namespace WebVella.Erp.Web.TagHelpers
 						var selectFileLink = new TagBuilder("button");
 						selectFileLink.Attributes.Add("type", $"button");
 						selectFileLink.AddCssClass("btn btn-white");
-						selectFileLink.Attributes.Add("onclick", $"document.getElementById('file-{FieldId}').click();");
+						selectFileLink.Attributes.Add("onclick", $"window.document.getElementById('file-{FieldId}').click();");
 						selectFileLink.InnerHtml.AppendHtml("select");
 						editInputGroupAppendEl.InnerHtml.AppendHtml(selectFileLink);
 
